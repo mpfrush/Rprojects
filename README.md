@@ -1,6 +1,6 @@
 # Rprojects
 
-Folder with R Projects for "Foundations of Data Science" Workshop. 
+Folder with R Projects for "Foundations of Data Science" Workshop. All projects are published in Rpubs http://rpubs.com/violetgirl. 
 
 - Code for exercise 1 is published in Rpubs: http://rpubs.com/violetgirl/199622. 
 
