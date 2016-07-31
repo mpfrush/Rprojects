@@ -1,3 +1,3 @@
 # Rprojects
 
-Folder with R Projects for Foundation of Data Science Workshop. 
+Folder with R Projects for "Foundations of Data Science" Workshop. 
