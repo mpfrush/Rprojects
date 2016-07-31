@@ -1,0 +1,45 @@
+---
+title: "Data Visualization for Titanic Data"
+author: "Maria P. Frushicheva"
+date: "Sunday, July 31, 2016"
+output: html_document
+---
+Exploratory data analysis for Titanic dataset: investigation whether you'd have a chance of surviving the disaster.
+
+Load the cleaned data into dataframe titanic. 
+```{r}
+titanic <- read.csv("titanic_clean.csv", header = TRUE, sep = ",")
+```
+
+Check out the structure of titanic.
+```{r}
+str(titanic)
+```
+
+The last passanger had missing information in all fields, except for the age variable, therefore was excluded from the dataset. 
+```{r}
+tail(titanic)
+titanic <- titanic[-1310,]
+```
+
+Use ggplot() to plot the distribution of sexes within the classes of the ship. 
+```{r,warning=FALSE}
+require(ggplot2)
+ggplot(titanic,aes(x=factor(pclass),fill=factor(sex)))+
+  geom_bar(position="dodge")
+```
+
+Use ggplot() to estimate your chances of survival from the distribution of sexes within the classes of the ship. 
+```{r}
+ggplot(titanic,aes(x=factor(pclass),fill=factor(sex)))+
+  geom_bar(position="dodge")+
+  facet_grid(". ~ survived")
+```
+
+Use ggplot() to estimate your chances of survival based on your age from the distribution of sexes within the classes of the ship. 
+```{r}
+posn.j <- position_jitter(0.5, 0)
+ggplot(titanic,aes(x=factor(pclass),y=age,col=factor(sex)))+
+  geom_jitter(size=3,alpha=0.5,position=posn.j)+
+  facet_grid(". ~ survived")
+```
