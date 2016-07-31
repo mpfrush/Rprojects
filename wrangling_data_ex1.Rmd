@@ -1,0 +1,76 @@
+---
+title: "Data Wrangling"
+author: "Maria P. Frushicheva"
+date: "Wednesday, July 13, 2016"
+output: html_document
+---
+Wrangling of data set with product purchases from an electronics store, called refine.xlsx. There are four brands: Philips, Akzo, Van Houten and Unilever. However, there are many different spellings and capitalizations of those names. The product code and number are combined in one column, separated by a hyphen. Task is to clean this data set to make it easier to visualize and analyze. 
+
+Load the data refine.xlsx into dataframe df. 
+```{r,warning=FALSE}
+# install.packages("xlsx")
+require(xlsx)
+lapply("refine.xlsx", function(f) {
+  df = read.xlsx(f, sheetName = "Sheet1")
+  write.csv(df, gsub(".xlsx","_original.csv", f), row.names=FALSE)
+})
+data <- read.csv("refine_original.csv", header = TRUE, sep = ",")
+```
+
+Installing packages for tidy data.
+```{r,warning=FALSE}
+# install.packages("dplyr")
+# install.packages("tidyr")
+require(dplyr)
+require(tidyr)
+```
+
+Clean up brand names in the 'company' column by transforming the values in the column to be: philips, akzo, van houten and unilever (all lowercase).
+```{r}
+df <- tbl_df(data)
+id_p <- agrep(pattern = "philips", x = df$company, ignore.case = TRUE, value = FALSE, max.distance = 3)
+id_a <- agrep(pattern = "akzo", x = df$company, ignore.case = TRUE, value = FALSE, max.distance = 3)
+id_v <- agrep(pattern = "van houten", x = df$company, ignore.case = TRUE, value = FALSE, max.distance = 3)
+id_u <- agrep(pattern = "unilever", x = df$company, ignore.case = TRUE, value = FALSE, max.distance = 3)
+df$company[id_p] <- "philips"
+df$company[id_a] <- "akzo"
+df$company[id_v] <- "van houten"
+df$company[id_u] <- "unilever"
+```
+
+Separate the product code and product number into separate columns, i.e. add two new columns called product_code and product_number, containing the product code and number respectively. 
+```{r}
+df <- df %>% separate(Product.code...number., c("product_code","product_number"), "-")
+```
+
+Add product categories: p = Smartphone, v = TV, x = Laptop, q = Tablet. Add a column with the product category for each record.
+```{r}
+df <- df %>% mutate(product_category =
+           ifelse(grepl("p",product_code),"Smartphone",                        
+           ifelse(grepl("v",product_code),"TV",
+           ifelse(grepl("x",product_code),"Laptop",
+           ifelse(grepl("q",product_code),"Tablet", NA)))))
+```
+
+Add full address for geocoding: the addresses need to be in a form that can be easily geocoded. Create a new column full_address that concatenates the three address fields (address, city, country), separated by commas.
+```{r}
+df <- df %>% unite(full_address, address, city, country, sep=",")
+```
+
+Create dummy variables for company and product category: add four binary (1 or 0) columns for company: company_philips, company_akzo, company_van_houten and company_unilever; add four binary (1 or 0) columns for product category: product_smartphone, product_tv, product_laptop and product_tablet. 
+```{r}
+df <- df %>% 
+  mutate(company_philips = ifelse(grepl("philips",company),1,0)) %>% 
+  mutate(company_akzo = ifelse(grepl("akzo",company),1,0)) %>%
+  mutate(company_van_houten = ifelse(grepl("van_houten",company),1,0)) %>%
+  mutate(company_unilever = ifelse(grepl("unilever",company),1,0)) %>%
+  
+  mutate(product_smartphone = ifelse(grepl("Smartphone",product_category),1,0)) %>% 
+  mutate(product_tv= ifelse(grepl("TV",product_category),1,0)) %>% 
+  mutate(product_laptop = ifelse(grepl("Laptop",product_category),1,0)) %>% 
+  mutate(product_tablet = ifelse(grepl("Tablet",product_category),1,0))
+```
+Write the data in cleaned up csv file. 
+```{r}
+write.csv(df, "refine_clean.csv", row.names=FALSE)
+```
