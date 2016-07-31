@@ -1,0 +1,61 @@
+---
+title: "Titanic Exercise"
+author: "Maria P. Frushicheva"
+date: "Sunday, July 31, 2016"
+output: html_document
+---
+Dealing with missing values in Titanic dataset. 
+
+Load the titanic3.xls data into dataframe titanic. 
+```{r,warning=FALSE}
+require(xlsx)
+lapply("titanic3.xls", function(f) {
+  df = read.xlsx(f, sheetName = "titanic3")
+  write.csv(df, gsub(".xls","_original.csv", f), row.names=FALSE)
+})
+titanic <- read.csv("titanic3_original.csv", header = TRUE, sep = ",")
+```
+
+Installing packages for tidy data.
+```{r,warning=FALSE}
+# install.packages("dplyr")
+# install.packages("tidyr")
+require(dplyr)
+require(tidyr)
+df <- tbl_df(titanic)
+```
+
+Port of embarkation variable: find the missing values and replace them with S.
+```{r}
+df$embarked[is.na(df$embarked)] <- "S"
+```
+
+Age variable: use mean (or median) value to populate the missing values.
+```{r}
+df %>% summarise(Min = min(age, na.rm=TRUE),
+                     Median = median(age, na.rm=TRUE),
+                     Mean = mean(age, na.rm=TRUE),
+                     Max = max(age, na.rm=TRUE))
+
+age_mean <- mean(df$age, na.rm=TRUE)
+df$age[is.na(df$age)] <- age_mean
+```
+
+Boat variable: fill missing values with a dummy value, e.g. the string 'None' or 'NA'.
+```{r}
+class(df$boat)
+df$boat <- as.character(df$boat)
+df$boat[is.na(df$boat)] <- "NA"
+```
+
+Cabin variable: the cabin number is missing might be a useful indicator of survival, thus create a new column has_cabin_number which has 1 if there is a cabin number, and 0 otherwise. 
+```{r}
+df <- df %>% mutate(has_cabin_number = ifelse(!is.na(cabin),1,0))
+```
+Write the data in cleaned up csv file. 
+```{r}
+write.csv(df, "titanic_clean.csv", row.names=FALSE)
+```
+
+
+
