@@ -1,0 +1,155 @@
+---
+title: "California Statewide Inpatient Mortality Rates, 2012-2013."
+author: "Maria P. Frushicheva"
+date: "Sunday, July 31, 2016"
+output: html_document
+---
+__Dataset__ is available from [healthdata.gov](http://www.healthdata.gov/dataset/california-statewide-inpatient-mortality-rates-2012-2013). 
+
+__Description of dataset__: The dataset contains risk-adjusted mortality rates, quality ratings, and number of deaths and cases for 6 medical conditions treated (Acute Stroke, Acute Myocardial Infarction, Heart Failure, Gastrointestinal Hemorrhage, Hip Fracture and Pneumonia) and 6 procedures performed (Abdominal Aortic Aneurysm Repair, Carotid Endarterectomy, Craniotomy, Esophageal Resection, Pancreatic Resection, Percutaneous Coronary Intervention) in California hospitals for 2012 and 2013. This dataset does not include conditions treated or procedures performed in outpatient settings. Please refer to [statewide table for California overall rates](https://chhs.data.ca.gov/Healthcare/California-Statewide-Inpatient-Mortality-Rates-201/nmyg-79m3). 
+
+__Question__: How the rate of in-hospital mortality across all facilities in California is correlated with the diagnoses and procedures performed during an inpatient stay? 
+
+_Preliminary Questions_: 
+
+- diagnosis versus mortality
+- procedures versus mortality
+- cost of procedure 
+
+```{r,warning=FALSE,echo=FALSE}
+#install.packages("dplyr")
+#install.packages("tidyr")
+#install.packages("ggplot2")
+#install.packages("gridExtra")
+require(dplyr)
+require(tidyr)
+require(ggplot2)
+require(gridExtra)
+```
+
+__Load the data from csv file.__ (from the website - need to figure out how to do this???)
+```{r}
+data <- read.csv("California_Hospital_Inpatient_Mortality_Rates_and_Quality_Ratings__2012-2013.csv",sep=",",header=TRUE)
+df <- tbl_df(data)
+glimpse(df)
+```
+
+### Description, analysis and cleaning of variables in the dataset.   
+
+__Dataset:__ Observations: 11,169 and Variables: 12
+
+__Variables with no missing values:__
+
+- Year: two years 2012 and 2013; __`r length(df$Year[df$Year==2012])`__ values for 2012 year and __`r length(df$Year[df$Year==2013])`__ values for 2013 year. 
+- County: 55 counties.
+- Hospital: 341 hospitals. 
+- OSHPDID: A unique number established by the Office of Statewide Health Planning and Development (OSHPD) for identifying facilities and used in the Licensed Facility Information System (LFIS). The first three numbers identify the type of facility, the next two represent the county number, and the last five are randomly assigned within each county. 570261 unique codes. 
+- Longitude: Longitude of hospital. 
+- Latitude: Latitude of hospital.
+- location1: 333 levels. 
+- Hospital Ratings: Comparison rating based on a 95% Confidence Interval (CI). If a hospital’s upper CI is less than the statewide observed rate, it is designated as performing “better” than the average hospital. If a hospital’s lower CI is greater than the state rate, it is designated as performing “worse” than the average state hospital. __3 levels of Hospital Ratings:__ As Expected, Better and Worse.
+```{r}
+summary(df$Hospital.Ratings)
+```
+
+- Procedure/Condition: Procedure that was performed or condition that was treated. 6 medical procedures performed: Abdominal Aortic Aneurysm (AAA) Repair, Carotid Endarterectomy, Craniotomy, Esophageal Resection, Pancreatic Resection, Percutaneous Coronary Intervention. 6 medical conditions treated: Acute Stroke, Acute Myocardial Infarction, Heart Failure, Gastrointestinal Hemorrhage, Hip Fracture and Pneumonia. __17 levels, instead of 12.__ 
+```{r}
+summary(df$Procedure.Condition)
+```
+
+__Decoding Procedure/Condition variable.__
+
+- combine 17 levels into 12. 
+- separate procedure and condition in two columns, potential problem here: will create NA values for missing procedure or condition.
+- OR: separate in two columns: the category column with values procedure or codnition, and the category values column with values of 12 procedures and conditions. 
+
+__Variables with missing values:__
+
+- Risk Adjusted Mortality Rate: The Risk Adjusted Mortality Rates (RAMR) presented here adjusts the observed mortality rates. This statistical methodology takes into account pre-existing health problems that put some patients at greater risk of death to “level the playing field” and allow fair comparisons across hospitals. __`r length(df$Risk.Adjusted.Mortality.Rate[is.na(df$Risk.Adjusted.Mortality.Rate)])`__ missing values.
+- Number of Deaths: Number of patients that died in this hospital. __`r length(df$X..of.Deaths[is.na(df$X..of.Deaths)])`__ missing values.
+- Number of Cases: Number of patients that had this medical procedure or condition in this hospital. __`r length(df$X..of.Cases[is.na(df$X..of.Cases)])`__ missing values.
+
+Solution: check if missing values in three variables are within the same observations. Can we just remove them or we need to populate them with mean or median values?
+
+### Checking for outliers.
+
+__Boxplots of # of Deaths, # of Cases and Risk.Adjusted.Mortality.Rate for 2012 and 2013 years.__ 
+```{r}
+p1 <- ggplot(df,aes(factor(Year),X..of.Deaths))+
+  geom_boxplot()
+
+p2 <- ggplot(df,aes(factor(Year),X..of.Cases))+
+  geom_boxplot()
+
+p3 <- ggplot(df,aes(factor(Year),Risk.Adjusted.Mortality.Rate))+
+  geom_boxplot()
+
+grid.arrange(p1, p2, p3, ncol=1)
+
+summary(df$Risk.Adjusted.Mortality.Rate)
+summary(df$X..of.Deaths)
+summary(df$X..of.Cases)
+```
+
+__Boxplots of # of Deaths, # of Cases and Risk.Adjusted.Mortality.Rate for Hospital.Ratings.__ 
+```{r}
+p1 <- ggplot(df,aes(factor(Hospital.Ratings),X..of.Deaths))+
+  geom_boxplot()
+
+p2 <- ggplot(df,aes(factor(Hospital.Ratings),X..of.Cases))+
+  geom_boxplot()
+
+p3 <- ggplot(df,aes(factor(Hospital.Ratings),Risk.Adjusted.Mortality.Rate))+
+  geom_boxplot()
+
+grid.arrange(p1, p2, p3, ncol=1)
+```
+
+### Initial Explanatory Data Analysis
+
+__Histrograms of # of Deaths, # of Cases and Risk.Adjusted.Mortality.Rate for 2012 and 2013 years.__ 
+```{r}
+p1 <- ggplot(df,aes(X..of.Deaths,fill=factor(Year)))+
+  geom_histogram(position="dodge")
+
+p2 <- ggplot(df,aes(X..of.Cases,fill=factor(Year)))+
+  geom_histogram(position="dodge")
+
+p3 <- ggplot(df,aes(Risk.Adjusted.Mortality.Rate,fill=factor(Year)))+
+  geom_histogram(position="dodge")
+
+grid.arrange(p1, p2, p3, ncol=1)
+```
+
+__Histrograms of # of Deaths, # of Cases and Risk.Adjusted.Mortality.Rate for Hospital.Ratings.__ 
+```{r}
+p4 <- ggplot(df,aes(X..of.Deaths,fill=factor(Hospital.Ratings)))+
+  geom_histogram(position="dodge")
+
+p5 <- ggplot(df,aes(X..of.Cases,fill=factor(Hospital.Ratings)))+
+  geom_histogram(position="dodge")
+
+p6 <- ggplot(df,aes(Risk.Adjusted.Mortality.Rate,fill=factor(Hospital.Ratings)))+
+  geom_histogram(position="dodge")
+
+grid.arrange(p4, p5, p6, ncol=1)
+```
+
+__Histrograms of # of Deaths, # of Cases and Risk.Adjusted.Mortality.Rate for Year and Hospital.Ratings.__ 
+```{r}
+p4 <- ggplot(df,aes(X..of.Deaths,fill=factor(Year)))+
+  geom_histogram(position="dodge")+
+  facet_grid(". ~ Hospital.Ratings")
+
+p5 <- ggplot(df,aes(X..of.Cases,fill=factor(Year)))+
+  geom_histogram(position="dodge")+
+  facet_grid(". ~ Hospital.Ratings")
+
+p6 <- ggplot(df,aes(Risk.Adjusted.Mortality.Rate,fill=factor(Year)))+
+  geom_histogram(position="dodge")+
+  facet_grid(". ~ Hospital.Ratings")
+
+grid.arrange(p4, p5, p6, ncol=1)
+```
+
+
