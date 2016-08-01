@@ -8,5 +8,5 @@ Folder with R Projects for "Foundations of Data Science" Workshop. All projects 
 
 - Code for exercise 3 is published in Rpubs: http://rpubs.com/violetgirl/199651.  
 
-- Code for capstone project intial data analysis and EDA is published in Rpubs: http://rpubs.com/violetgirl/199678. 
+- Code for capstone project initial data analysis and EDA is published in Rpubs: http://rpubs.com/violetgirl/199678. 
 
