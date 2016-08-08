@@ -4,15 +4,15 @@ author: "Maria P. Frushicheva"
 date: "Monday, August 8, 2016"
 output: html_document
 ---
-__Dataset__ is available from [healthdata.gov](https://chhs.data.ca.gov/Healthcare/California-Hospital-Inpatient-Mortality-Rates-and-/rpkf-ugbp). 
+__First Dataset__ is available from [CA Hospital Mortality Rates for 2012-2013.](https://chhs.data.ca.gov/Healthcare/California-Hospital-Inpatient-Mortality-Rates-and-/rpkf-ugbp). 
 
-__Description of first dataset__: The dataset contains risk-adjusted mortality rates, quality ratings, and number of deaths and cases for 6 medical conditions treated (Acute Stroke, Acute Myocardial Infarction, Heart Failure, Gastrointestinal Hemorrhage, Hip Fracture and Pneumonia) and 6 procedures performed (Abdominal Aortic Aneurysm Repair, Carotid Endarterectomy, Craniotomy, Esophageal Resection, Pancreatic Resection, Percutaneous Coronary Intervention) in California hospitals for 2012 and 2013. This dataset does not include conditions treated or procedures performed in outpatient settings. Please refer to [statewide table for California overall rates](https://chhs.data.ca.gov/Healthcare/California-Statewide-Inpatient-Mortality-Rates-201/nmyg-79m3). 
+__Description of first dataset__: The dataset contains risk-adjusted mortality rates, quality ratings, and number of deaths and cases for 6 medical conditions treated (Acute Stroke, Acute Myocardial Infarction, Heart Failure, Gastrointestinal Hemorrhage, Hip Fracture and Pneumonia) and 6 procedures performed (Abdominal Aortic Aneurysm Repair, Carotid Endarterectomy, Craniotomy, Esophageal Resection, Pancreatic Resection, Percutaneous Coronary Intervention) in California hospitals for 2012 and 2013. This dataset does not include conditions treated or procedures performed in outpatient settings. Please refer to [statewide table for CA overall mortality rates](https://chhs.data.ca.gov/Healthcare/California-Statewide-Inpatient-Mortality-Rates-201/nmyg-79m3). 
 
-[Hospital Profitability for 2009-2013.](http://www.healthdata.gov/dataset/hospital-profitability-2009-2013)
+__Second Dataset__ is availabe from [Hospital Profitability for 2009-2013.](http://www.healthdata.gov/dataset/hospital-profitability-2009-2013)
 
 __Description of second dataset__: The dataset contains income statement information for all licensed, comparable hospitals in the state of California. Kaiser hospitals, state mental hospitals, psychiatric health facilities, and hospitals with mainly long-term care patients are excluded. Deductions from Revenue, Net Patient Revenue, Net from Operations (Operating Revenue less Operating Expense), and Net Income for public hospitals has been adjusted for Disproportionate Share intergovernmental transfers for funding the Disproportionate Share Hospital Program. The program gets federal matching funds to pay supplemental payments to hospitals with a disproportionate share of uninsured, underinsured, and Medi-Cal patients.
 
-__Question__: Can we predict hospital ratings based on risk adjusted mortality rates, number of deaths, number of cases and hospital profitability for 2012-2013?
+__Question__: Can we predict hospital ratings based on risk adjusted mortality rates, number of deaths, number of cases, medical procedures performed, medical conditions treated and hospital profitability for 2012-2013?
 
 ```{r,warning=FALSE,echo=FALSE,message=FALSE}
 #install.packages("dplyr")
@@ -28,17 +28,19 @@ require(ggmap)
 ```
 
 __Load the data from csv file.__ 
-```{r}
+```{r,warning=FALSE,message=FALSE}
 data <- read.csv("California_Hospital_Inpatient_Mortality_Rates_and_Quality_Ratings__2012-2013.csv",sep=",",header=TRUE)
 df <- tbl_df(data)
 glimpse(df)
 ```
 
-__Load the data from the website.__ (not working)
+__Load the data from the website.__ 
 ```{r,warning=FALSE,message=FALSE,eval=FALSE}
-fileUrl <- "http://oshpd.ca.gov/HID/Products/PatDischargeData/AHRQ/iqi/2013/iqi-imi-2013.html"
-download.file(fileUrl,destfile="test_data.csv",mode="wb")
-data <- read.csv("test_data.csv",sep=",",header=TRUE)
+setwd("C:/Users/maria/Dropbox (Personal)/SpringBoard Fund/Rprojects/")
+download.file("https://chhs.data.ca.gov/resource/dayj-x3m3.csv",destfile="mortality_data.csv")
+data <- read.csv("mortality_data.csv",sep=",",header=TRUE)
+df <- tbl_df(data)
+glimpse(df)
 ```
 
 ### Description, analysis and cleaning of variables in the dataset.   
@@ -199,7 +201,7 @@ grid.arrange(p3, p6, ncol=1)
 - The distribution of mortality rate with better hosital ratings is symmetric.
 - There is an association between the mortality rate and hospital ratings.
 - The higher mortality rate, the worse hospital ratings are. 
-- The lower mortality rate, the bettwe hospital ratings are.
+- The lower mortality rate, the better hospital ratings are.
 
 __Histrograms of # of Deaths, # of Cases and Risk.Adjusted.Mortality.Rate for Year and Hospital.Ratings.__ 
 ```{r,warning=FALSE,message=FALSE}
@@ -220,7 +222,12 @@ p6 <- ggplot(df_hr_ae,aes(log(Risk.Adjusted.Mortality.Rate),fill=factor(Year),co
   facet_grid(Hospital.Ratings ~ ., scale="free_y", space="free_y")
 
 grid.arrange(p4, p5, p6, ncol=1)
+```
 
+- Distributions between 2012 and 2013 years look simiar.
+- There are no associations between variables.
+
+```{r,warning=FALSE,message=FALSE}
 p7 <- ggplot(df_hr,aes(log(X..of.Deaths),fill=factor(Year),colour=factor(Year)))+
   #geom_histogram(position="dodge")+
   geom_density(alpha = 0.1)+
@@ -239,51 +246,91 @@ p9 <- ggplot(df_hr,aes(log(Risk.Adjusted.Mortality.Rate),fill=factor(Year),colou
 grid.arrange(p7, p8, p9, ncol=2)
 ```
 
-__Histrograms of # of Deaths, # of Cases and Risk.Adjusted.Mortality.Rate for Procedure.Condition.__ 
+- Distributions between 2012 and 2013 years look simiar.
+- There are no associations between variables for number of deaths and number of cases.
+- There is association between the risk adjusted mortality rate and hospital ratings.
+- Lower the risk adjusted mortality rate, better the hospital ratings.
+- Higher the risk adjusted mortality rate, worse the hospital ratings.
+
+__Conclusion 1:__ There is association between the risk adjusted mortality rate and hospital ratings. 
+
+__Histrograms of # of Deaths, # of Cases and Risk.Adjusted.Mortality.Rate for Procedures Performed.__ 
 ```{r,warning=FALSE,message=FALSE}
 df_p <- df_clean[which(df_clean$Medical_Category=="Procedure"),]
-df_c <- df_clean[which(df_clean$Medical_Category=="Condition"),]
 
 p4 <- ggplot(df_p,aes(log(X..of.Deaths),fill=factor(Procedure.Condition),colour=factor(Procedure.Condition)))+
   geom_histogram(position="stack")
   #geom_density(alpha = 0.1)
 
 p4
+```
 
+- The highest number of deaths is from PCI and craniotomy procedures. 
+
+```{r,warning=FALSE,message=FALSE}
 p5 <- ggplot(df_p,aes(log(X..of.Cases),fill=factor(Procedure.Condition),colour=factor(Procedure.Condition)))+
   geom_histogram(position="stack")
   #geom_density(alpha = 0.1)
 
 p5
+```
 
+- The highest number of cases is from PCI and craniotomy procedures. 
+
+```{r,warning=FALSE,message=FALSE}
 p6 <- ggplot(df_p,aes(log(Risk.Adjusted.Mortality.Rate),fill=factor(Procedure.Condition),colour=factor(Procedure.Condition)))+
   geom_histogram(position="stack")
   #geom_density(alpha = 0.1)
 
 p6
+```
+
+- The highest Risk.Adjusted.Mortality.Rate is from craniotomy procedure.
+- The Risk.Adjusted.Mortality.Rate is lower from PCI procedure. 
+
+__Histrograms of # of Deaths, # of Cases and Risk.Adjusted.Mortality.Rate for Conditions Treated.__
+```{r,warning=FALSE,message=FALSE}
+df_c <- df_clean[which(df_clean$Medical_Category=="Condition"),]
 
 p7 <- ggplot(df_c,aes(log(X..of.Deaths),fill=factor(Procedure.Condition),colour=factor(Procedure.Condition)))+
   geom_histogram(position="stack")
   #geom_density(alpha = 0.1)
 
 p7
+```
 
+- The highest number of deaths is for acute stroke condition. 
+- The number of deaths lower is for heart failure and AMI conditions. 
+
+```{r,warning=FALSE,message=FALSE}
 p8 <- ggplot(df_c,aes(log(X..of.Cases),fill=factor(Procedure.Condition),colour=factor(Procedure.Condition)))+
   geom_histogram(position="stack")
   #geom_density(alpha = 0.1)
 
 p8
+```
 
+- The highest number of cases is for acute stroke condition. 
+- The number of cases lower is for heart failure, AMI and GI Hemorrhage conditions. 
+
+```{r,warning=FALSE,message=FALSE}
 p9 <- ggplot(df_c,aes(log(Risk.Adjusted.Mortality.Rate),fill=factor(Procedure.Condition),colour=factor(Procedure.Condition)))+
   geom_histogram(position="stack")
   #geom_density(alpha = 0.1)
 
 p9
-
 #grid.arrange(p4, p5, p6, ncol=1)
 ```
 
-__Histrograms for Procedure.Condition.__ 
+- The highest Risk.Adjusted.Mortality.Rate is for acute stroke condition. 
+- The Risk.Adjusted.Mortality.Rate lower is for heart failure, AMI and GI Hemorrhage conditions. 
+
+__Conclusion 2:__ 
+
+- The highest Risk.Adjusted.Mortality.Rate is for craniotomy procedure and acute stroke condition. 
+- The Risk.Adjusted.Mortality.Rate is lower for PCI procedure and for heart failure, AMI and GI Hemorrhage conditions.
+
+__Histrograms for Procedures for Hospital.Ratings.__ 
 ```{r,warning=FALSE,message=FALSE}
 df_p_hr_ae <- df_p[which(df_p$Hospital.Ratings=="As Expected"),]
 df_p_hr <- df_p[which(df_p$Hospital.Ratings!="As Expected"),]
@@ -301,7 +348,13 @@ p2 <- ggplot(df_p_hr,aes(Procedure.Condition,colour=factor(Hospital.Ratings),fil
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 grid.arrange(p1, p2, ncol=1)
+```
 
+- Hospital ratings are the same between worse and better for craniotomy procedure.
+- Hospital ratings are worse for PCI procedure.
+
+__Histrograms for Conditions for Hospital.Ratings.__ 
+```{r,warning=FALSE,message=FALSE}
 df_c_hr_ae <- df_c[which(df_c$Hospital.Ratings=="As Expected"),]
 df_c_hr <- df_c[which(df_c$Hospital.Ratings!="As Expected"),]
 
@@ -321,27 +374,41 @@ grid.arrange(p3, p4, ncol=1)
 
 ```
 
+- Hospital ratings are the same between worse and better for acute stroke condition.
+- Hospital ratings are worse for AMI, GI Hemorrhage and heart failure conditions.
 
 __Associations between medical procedure or condition with hospital ratings.__
 ```{r}
 table(df_clean$Procedure.Condition,df_clean$Hospital.Ratings)
-#table(df_clean$County,df_clean$Procedure.Condition)
-
-#summary(df_clean$X..of.Cases)
-#summary(df_clean$X..of.Deaths)
-#summary(df_clean$Risk.Adjusted.Mortality.Rate)
 ```
+
+__Conclusion 3:__
+
+- Hospital ratings are the same between worse and better for craniotomy procedure and acute stroke condition.
+- Hospital ratings are worse for PCI procedure and for AMI, GI Hemorrhage and heart failure conditions.
+
+###__Summary (from conclusions):__
+
+- There is association between the risk adjusted mortality rate and hospital ratings.
+- Lower the risk adjusted mortality rate, better the hospital ratings.
+- Higher the risk adjusted mortality rate, worse the hospital ratings.
+
+- The highest Risk.Adjusted.Mortality.Rate is for craniotomy procedure and acute stroke condition. 
+- The Risk.Adjusted.Mortality.Rate is lower for PCI procedure and for heart failure, AMI and GI Hemorrhage conditions.
+
+- Hospital ratings are the same between worse and better for craniotomy procedure and acute stroke condition.
+- Hospital ratings are worse for PCI procedure and for AMI, GI Hemorrhage and heart failure conditions.
 
 __Risk.Adjusted.Mortality.Rate versus X..of.Cases or X..of.Deaths.__
 ```{r,warning=FALSE,message=FALSE}
 fit1 <- lm(Risk.Adjusted.Mortality.Rate ~ X..of.Cases, data=df_clean)
-summary(fit1)
+#summary(fit1)
 p1 <- ggplot(df_clean, aes(X..of.Cases,Risk.Adjusted.Mortality.Rate))+ 
   geom_point(alpha = 0.1)+
   stat_smooth(method='lm')
 
 fit2 <- lm(Risk.Adjusted.Mortality.Rate ~ X..of.Deaths, data=df_clean)
-summary(fit2)
+#summary(fit2)
 p2 <- ggplot(df_clean, aes(X..of.Deaths,Risk.Adjusted.Mortality.Rate))+
   geom_point(alpha = 0.1)+
   stat_smooth(method='lm')
@@ -349,7 +416,9 @@ p2 <- ggplot(df_clean, aes(X..of.Deaths,Risk.Adjusted.Mortality.Rate))+
 grid.arrange(p1, p2, ncol=2)
 ```
 
-__Mapping of Hospital.Ratings.__
+- There is no accociation between the Risk.Adjusted.Mortality.Rate and X..of.Cases or X..of.Deaths. 
+
+__Mapping of Hospital.Ratings.__ (need to understand more here)
 ```{r,warning=FALSE,message=FALSE}
 CAmap <- get_map(location="California",source="google",maptype="roadmap",crop=FALSE,zoom=6)
 ggmap (CAmap) +
