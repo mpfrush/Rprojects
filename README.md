@@ -10,6 +10,8 @@ Folder with R Projects for "Foundations of Data Science" Workshop. All projects 
 
 - Code for Decision Trees and Random Forests for Titanic Data is published in Rpubs: http://rpubs.com/violetgirl/201322.
 
+- Code for CHIS Data Visualization Exercise 4 is available in this folder, file name is CHIS.R. 
+
 - Code for k-means clustering mini-project is published in Rpubs: http://rpubs.com/violetgirl/201598. 
 
 - Codes for capstone project:
