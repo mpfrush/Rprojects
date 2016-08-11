@@ -1,0 +1,193 @@
+---
+title: "CA Hospital Ratings Prediction Using Decision Trees."
+author: "Maria P. Frushicheva"
+date: "Monday, August 8, 2016"
+output: html_document
+---
+__First Dataset__ is available from [CA Hospital Mortality Rates for 2012-2013.](https://chhs.data.ca.gov/Healthcare/California-Hospital-Inpatient-Mortality-Rates-and-/rpkf-ugbp). 
+
+__Second Dataset__ is availabe from [Hospital Profitability for 2009-2013.](http://www.healthdata.gov/dataset/hospital-profitability-2009-2013)
+
+__Question__: Can we predict hospital ratings based on risk adjusted mortality rates, number of deaths, number of cases, medical procedures performed, medical conditions treated and hospital profitability for 2012-2013?
+
+```{r,warning=FALSE,echo=FALSE,message=FALSE}
+require(dplyr)
+require(tidyr)
+require(ggplot2)
+require(gridExtra)
+require(ggmap)
+library(rpart)
+library(rattle)
+library(rpart.plot)
+library(RColorBrewer)
+library(randomForest)
+library(ROCR)
+require(caTools)
+library(foreign)
+library(nnet)
+library(reshape2)
+```
+
+__Dataset Wrangling.__ 
+```{r,warning=FALSE,message=FALSE}
+data <- read.csv("California_Hospital_Inpatient_Mortality_Rates_and_Quality_Ratings__2012-2013.csv",sep=",",header=TRUE)
+df <- tbl_df(data)
+df_clean <- df[which(is.na(df$X..of.Cases)==F),]
+df_clean$Procedure.Condition <- gsub("Acute Stroke .*","Acute Stroke",df_clean$Procedure.Condition)
+df_clean$Procedure.Condition <- factor(df_clean$Procedure.Condition)
+df_clean <- df_clean %>% 
+  mutate(Medical_Category = ifelse(grepl("Repair",Procedure.Condition) | grepl("Endarterectomy",Procedure.Condition) | grepl("Craniotomy",Procedure.Condition) | grepl("Resection",Procedure.Condition) | grepl("PCI",Procedure.Condition),               "Procedure", "Condition"))
+glimpse(df_clean)
+```
+
+__Summary from EDA.__
+
+- There is association between the risk adjusted mortality rate and hospital ratings.
+- Lower the risk adjusted mortality rate, better the hospital ratings.
+- Higher the risk adjusted mortality rate, worse the hospital ratings.
+
+- The highest Risk.Adjusted.Mortality.Rate is for craniotomy procedure and acute stroke condition. 
+- The Risk.Adjusted.Mortality.Rate is lower for PCI procedure and for heart failure, AMI and GI Hemorrhage conditions.
+
+- Hospital ratings are the same between worse and better for craniotomy procedure and acute stroke condition.
+- Hospital ratings are worse for PCI procedure and for AMI, GI Hemorrhage and heart failure conditions.
+
+__Split the Dataset into train and test sets.__
+
+```{r,warning=FALSE,message=FALSE}
+set.seed(101) 
+sample = sample.split(df_clean$Hospital.Ratings, SplitRatio = .7)
+train = subset(df_clean, sample == TRUE)
+test_original = subset(df_clean, sample == FALSE)
+test <- subset(test_original, select = -Hospital.Ratings)
+```
+
+### Decision Trees: Prediction of Hospital Ratings. 
+
+- The column labeled CP is the complexity parameter. It serves as a penalty term to control tree size and is always monotonic with the number of splits (nsplit). The smaller the value of CP, the more complex will be the tree (the greater the number of splits).
+- The relative error (rel error) is the average deviance of the current tree divided by the average deviance of the null tree.
+- The cross-validation error (xerror) is based on a 10-fold cross-validation and is again measured relative to the deviance of the null model. As expected the cross-validation error is greater than the relative error. Using the same data to both fit and test a model results in over-optimistic fit diagnostics.
+
+__Reading sources:__ 
+
+- http://www.slideshare.net/DerekKane/data-science-v-decision-tree-random-forests
+- http://scg.sdsu.edu/ctrees_r/
+- http://scg.sdsu.edu/rf_r/
+- https://www.unc.edu/courses/2010spring/ecol/562/001/docs/lectures/lecture22.htm
+- https://www.analyticsvidhya.com/blog/2016/04/complete-tutorial-tree-based-modeling-scratch-in-python/
+
+```{r,warning=FALSE,message=FALSE}
+# Build the decision tree
+tree0 <- rpart(Hospital.Ratings ~ Procedure.Condition + Risk.Adjusted.Mortality.Rate + X..of.Cases + X..of.Deaths + Year, data = train, method = "class")
+printcp(tree0)
+fancyRpartPlot(tree0)
+```
+
+```{r,warning=FALSE,message=FALSE}
+set.seed(20)
+tree1 <- rpart(Hospital.Ratings ~ Procedure.Condition + Risk.Adjusted.Mortality.Rate + X..of.Cases + X..of.Deaths + Year, data = train, method = "class", control=rpart.control(cp=0.0001,minsplit = 50))
+
+# cp determines when the splitting up of the decision tree stops.
+# minsplit determines the minimum amount of observations in a leaf of the tree.
+
+printcp(tree1)
+plotcp(tree1)
+min(tree1$cptable[,"xerror"])
+num <- which.min(tree1$cptable[,"xerror"])
+num
+tree1$cptable[num,]
+cp.choice<-tree1$cptable[num,"CP"]
+cp.choice
+pruned.tree<-prune(tree1, cp=cp.choice)
+#pruned.tree
+fancyRpartPlot(pruned.tree)
+```
+
+__Making Predictions.__
+```{r}
+# Make predictions on the test set
+prediction <- predict(pruned.tree, test, type = "class")
+# confusion matrix
+cm <- as.matrix(table(Actual = test_original$Hospital.Ratings,Predicted = prediction))
+cm
+```
+
+__Accuracy.__
+A key metric to start with is the overall classification accuracy. It is defined as the fraction of instances that are correctly classified.
+```{r}
+n = sum(cm) # number of instances
+nc = nrow(cm) # number of classes
+diag = diag(cm) # number of correctly classified instances per class 
+rowsums = apply(cm, 1, sum) # number of instances per class
+colsums = apply(cm, 2, sum) # number of predictions per class
+p = rowsums / n # distribution of instances over the actual classes
+q = colsums / n # distribution of instances over the predicted classes
+
+accuracy = sum(diag) / n 
+accuracy
+```
+
+__Per-class Precision, Recall, and F-1.__
+
+- Precision is defined as the fraction of positive predictions that are actually positive (best value = 1).
+- Recall is the fraction of positive data predicted to be positive (best value = 1).
+- The F-1 score is defined as the harmonic mean (or a weighted average) of precision and recall.
+- Optimistic model: low precision, high recall.
+- Pessimistic model: high precision, low recall.
+
+```{r}
+precision = diag / colsums 
+recall = diag / rowsums 
+f1 = 2 * precision * recall / (precision + recall) 
+data.frame(precision, recall, f1) 
+```
+
+### Decision Trees: Predict Hospital Ratings Using Random Forests.
+
+```{r,warning=FALSE,message=FALSE}
+fit <- randomForest(Hospital.Ratings ~ Procedure.Condition + Risk.Adjusted.Mortality.Rate + X..of.Cases + X..of.Deaths + Year, data=train,importance=TRUE,ntree=1000)
+print(fit) # view results 
+importance(fit) # importance of each predictor
+varImpPlot(fit)
+prediction1 <- predict(fit, test)
+cm <- as.matrix(table(Actual = test_original$Hospital.Ratings,Predicted = prediction1))
+cm
+
+n = sum(cm) # number of instances
+nc = nrow(cm) # number of classes
+diag = diag(cm) # number of correctly classified instances per class 
+rowsums = apply(cm, 1, sum) # number of instances per class
+colsums = apply(cm, 2, sum) # number of predictions per class
+p = rowsums / n # distribution of instances over the actual classes
+q = colsums / n # distribution of instances over the predicted classes
+
+accuracy = sum(diag) / n 
+accuracy
+
+precision = diag / colsums 
+recall = diag / rowsums 
+f1 = 2 * precision * recall / (precision + recall) 
+data.frame(precision, recall, f1) 
+```
+
+### redict Hospital Ratings Using Multinomial Logistic Regression. 
+
+Reading: http://www.ats.ucla.edu/stat/r/dae/mlogit.htm
+
+- The outcome variable is Hospital.Ratings: As Expected, Better, Worse. 
+- The predictor variables are Year, County, Hospital, Procedure.Condition, Risk.Adjusted.Mortality.Rate, X..of.Deaths, X..of.Cases, Medical_Category.
+- Refernce group for our outcome: As Expected.
+
+```{r}
+df_clean$Hospital.Ratings2 <- relevel(df_clean$Hospital.Ratings, ref = "As Expected")
+test <- multinom(Hospital.Ratings2 ~ Risk.Adjusted.Mortality.Rate + Year + County + Procedure.Condition + X..of.Deaths + X..of.Cases + Medical_Category, data = df_clean)
+cm <- as.matrix(table(Actual = df_clean$Hospital.Ratings,Predicted = df_clean$Hospital.Ratings2))
+cm
+summary(test)
+z <- summary(test)$coefficients/summary(test)$standard.errors
+z
+p <- (1 - pnorm(abs(z), 0, 1))*2
+p
+exp(coef(test))
+head(pp <- fitted(test))
+```
