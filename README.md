@@ -8,7 +8,7 @@ Folder with R Projects for "Foundations of Data Science" Workshop. All projects 
 
 - Code for Titanic Data Visualization Exercise 3 is published in Rpubs: http://rpubs.com/violetgirl/199651.  
 
-- Code for Desicion Trees and Random Forests for Titanic Data is published in Rpubs: http://rpubs.com/violetgirl/201322.
+- Code for Decision Trees and Random Forests for Titanic Data is published in Rpubs: http://rpubs.com/violetgirl/201322.
 
 - Code for k-means clustering mini-project is published in Rpubs: http://rpubs.com/violetgirl/201598. 
 
@@ -16,5 +16,5 @@ Folder with R Projects for "Foundations of Data Science" Workshop. All projects 
 
   + initial data analysis and EDA is published in Rpubs: http://rpubs.com/violetgirl/199678. 
   + EDA part 2 is published in Rpubs: http://rpubs.com/violetgirl/201099. 
-  + Desicion trees and random forests is published in Rpubs: http://rpubs.com/violetgirl/201285.
+  + Decision trees and random forests is published in Rpubs: http://rpubs.com/violetgirl/201285.
 
