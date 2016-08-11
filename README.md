@@ -2,14 +2,19 @@
 
 Folder with R Projects for "Foundations of Data Science" Workshop. All projects are published in Rpubs http://rpubs.com/violetgirl. 
 
-- Code for exercise 1 is published in Rpubs: http://rpubs.com/violetgirl/199622. 
+- Code for Data Wrangling Exercise 1: Basic Data Manipulation is published in Rpubs: http://rpubs.com/violetgirl/199622. 
 
-- Code for exercise 2 is published in Rpubs: http://rpubs.com/violetgirl/199647. 
+- Code for Data Wrangling Exercise 2: Dealing with missing values is published in Rpubs: http://rpubs.com/violetgirl/199647. 
 
-- Code for exercise 3 is published in Rpubs: http://rpubs.com/violetgirl/199651.  
+- Code for Titanic Data Visualization Exercise 3 is published in Rpubs: http://rpubs.com/violetgirl/199651.  
+
+- Code for Desicion Trees and Random Forests for Titanic Data is published in Rpubs: http://rpubs.com/violetgirl/201322.
+
+- Code for k-means clustering mini-project is published in Rpubs: http://rpubs.com/violetgirl/201598. 
 
 - Codes for capstone project:
 
   + initial data analysis and EDA is published in Rpubs: http://rpubs.com/violetgirl/199678. 
   + EDA part 2 is published in Rpubs: http://rpubs.com/violetgirl/201099. 
+  + Desicion trees and random forests is published in Rpubs: http://rpubs.com/violetgirl/201285.
 
