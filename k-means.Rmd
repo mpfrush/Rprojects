@@ -1,6 +1,6 @@
 ---
 title: "k-means Clustering"
-author: "mfrush"
+author: "Maria P. Frushicheva"
 date: "August 11, 2016"
 output: html_document
 ---
