@@ -12,6 +12,8 @@ Folder with R Projects for "Foundations of Data Science" Workshop. All projects 
 
 - Code for CHIS Data Visualization Exercise 4 is available in this folder, file name is CHIS.R. 
 
+- Code for linear regression mini-project is published in Rpubs: http://rpubs.com/violetgirl/201679. 
+
 - Code for logistic regression mini-project is published in Rpubs: http://rpubs.com/violetgirl/201662. 
 
 - Code for k-means clustering mini-project is published in Rpubs: http://rpubs.com/violetgirl/201598. 
