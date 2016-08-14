@@ -24,6 +24,7 @@ Folder with R Projects for "Foundations of Data Science" Workshop. All projects 
   + EDA part 2 is published in Rpubs: http://rpubs.com/violetgirl/201099. 
   + Decision trees and random forests is published in Rpubs: http://rpubs.com/violetgirl/201285.
   + Milestone Report is published in Rpubs: https://rpubs.com/violetgirl/202022. 
+  + Final Report is published in Rpubs: http://rpubs.com/violetgirl/202095. 
   
 
 
