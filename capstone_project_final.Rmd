@@ -1,0 +1,591 @@
+---
+title: "Capstone Project: CA Hospital Quality Ratings Prediction"
+author: "Maria P. Frushicheva"
+date: "August 14, 2016"
+output: html_document
+---
+## Introduction 
+
+__Importance:__ Using hospital quality ratings, patients are able to make a better decision in what hospital they want to be treated and where the best care is available in state of California, based on overall hospital performance or based on particular medical condition or procedure. 
+
+__Question:__ Can we predict hospital quality ratings based on risk adjusted mortality rates, number of deaths, number of cases, medical procedures performed and medical conditions treated for 2012-2013?
+
+## Description of Data Set
+
+__Dataset:__ is available from [California Hospital Inpatient Mortality Rates and Quality Ratings, 2012-2013](https://chhs.data.ca.gov/Healthcare/California-Hospital-Inpatient-Mortality-Rates-and-/rpkf-ugbp). 
+
+__Description of dataset:__ The dataset contains risk-adjusted mortality rates, and number of deaths and cases for 6 medical conditions treated (Acute Stroke, Acute Myocardial Infarction, Heart Failure, Gastrointestinal Hemorrhage, Hip Fracture and Pneumonia) and 6 procedures performed (Abdominal Aortic Aneurysm Repair, Carotid Endarterectomy, Craniotomy, Esophageal Resection, Pancreatic Resection, Percutaneous Coronary Intervention) in California hospitals for 2012 and 2013. This dataset does not include conditions treated or procedures performed in outpatient settings. 
+
+## Description, Analysis and Cleaning of Variables in the Data Set
+
+```{r,warning=FALSE,echo=FALSE,message=FALSE}
+require(dplyr)
+require(tidyr)
+require(ggplot2)
+require(gridExtra)
+require(ggmap)
+library(rpart)
+library(rattle)
+library(rpart.plot)
+library(RColorBrewer)
+library(randomForest)
+require(caTools)
+library(foreign)
+library(nnet)
+library(reshape2)
+```
+
+__Load the data from csv file.__ 
+```{r,warning=FALSE,message=FALSE}
+setwd("C:/Users/postdoc/Dropbox (Personal)/SpringBoard Fund/Rprojects/")
+data <- read.csv("California_Hospital_Inpatient_Mortality_Rates_and_Quality_Ratings__2012-2013.csv",sep=",",header=TRUE)
+df <- tbl_df(data)
+```
+
+__Dataset:__ __`r nrow(df)`__ observations and __`r ncol(df)`__ variables. 
+
+__Variables with missing values:__
+
+- Risk Adjusted Mortality Rate: The Risk Adjusted Mortality Rates (RAMR) presented here adjusts the observed mortality rates. This statistical methodology takes into account pre-existing health problems that put some patients at greater risk of death to level the playing field and allow fair comparisons across hospitals. __`r length(df$Risk.Adjusted.Mortality.Rate[is.na(df$Risk.Adjusted.Mortality.Rate)])`__ missing values.
+- Number of Deaths: Number of patients that died in this hospital. __`r length(df$X..of.Deaths[is.na(df$X..of.Deaths)])`__ missing values.
+- Number of Cases: Number of patients that had this medical procedure or condition in this hospital. __`r length(df$X..of.Cases[is.na(df$X..of.Cases)])`__ missing values.
+
+__Remove missing values, because number of missing values consists of half of dataset.__
+```{r}
+df_clean <- df[which(is.na(df$X..of.Cases)==F),]
+```
+
+__Clean Dataset:__ __`r nrow(df_clean)`__ observations and __`r ncol(df_clean)`__ variables. 
+
+__Variables with no missing values:__
+
+- Year: two years 2012 and 2013; __`r length(df_clean$Year[df_clean$Year==2012])`__ values for 2012 year and __`r length(df_clean$Year[df_clean$Year==2013])`__ values for 2013 year. 
+- County: 55 counties.
+- Hospital: 341 hospitals. 
+- OSHPDID: A unique number established by the Office of Statewide Health Planning and Development (OSHPD) for identifying facilities and used in the Licensed Facility Information System (LFIS). The first three numbers identify the type of facility, the next two represent the county number, and the last five are randomly assigned within each county. 570261 unique codes. 
+- Longitude: Longitude of hospital. 
+- Latitude: Latitude of hospital.
+- location1: 333 levels. 
+- Hospital Ratings: Comparison rating based on a 95% Confidence Interval (CI). If a hospitals upper CI is less than the statewide observed rate, it is designated as performing better than the average hospital. If a hospitals lower CI is greater than the state rate, it is designated as performing worse than the average state hospital. __3 levels of Hospital Ratings:__ As Expected, Better and Worse.
+```{r}
+summary(df_clean$Hospital.Ratings)
+```
+
+- Procedure/Condition: Procedure that was performed or condition that was treated. 6 medical procedures performed: Abdominal Aortic Aneurysm (AAA) Repair, Carotid Endarterectomy, Craniotomy, Esophageal Resection, Pancreatic Resection, Percutaneous Coronary Intervention. 6 medical conditions treated: Acute Stroke, Acute Myocardial Infarction, Heart Failure, Gastrointestinal Hemorrhage, Hip Fracture and Pneumonia. Clean dataset consists of __17 levels, instead of 12.__ 
+```{r}
+summary(df_clean$Procedure.Condition)
+```
+
+__Decoding Procedure/Condition variable.__
+
+According to the American Stroke Association (ASA), strokes can be classified into 2 main categories: __87%__ are ischemic strokes, caused by blockage of an artery; __13%__ are hemorrhagic strokes, caused by bleeding. Ischemic strokes are further divided into 2 groups: thrombotic and embolic strokes. Hemorrhagic strokes are divided into 2 main categories: intracerebral and subarachnoid hemorrhages. 
+
+Our clean dataset has four categories for Acute Stroke: 
+
+- Acute Stroke: 617 observations;
+- Acute Stroke Hemorrhagic: 466 observations;
+- Acute Stroke Ischemic: 615 obervations;
+- Acute Stroke Subarachnoid: 241 observations.
+
+Within each hospital, there are different notations for Acute Stroke variable. It suggests that different doctor uses different notations for the condition. These four categories are combined in one: Acute Stroke. 
+
+```{r}
+df_clean$Procedure.Condition <- gsub("Acute Stroke .*","Acute Stroke",df_clean$Procedure.Condition)
+df_clean$Procedure.Condition <- factor(df_clean$Procedure.Condition)
+```
+
+Two additional categories are present in Procedure/Condition variable:
+
+- Pancreatic Cancer: 142 observations;
+- Pancreatic Other: 130 observations. 
+
+These categories are separate medical conditions and are not combined in one category. 
+
+The Procedure.Condition variable contains 6 medical procedures and 8 medical conditions. To indicate what procedure was performed or what condition was treated, the Medical_Categorey variable was added to the clean dataset. 
+
+```{r}
+df_clean <- df_clean %>% 
+  mutate(Medical_Category = ifelse(grepl("Repair",Procedure.Condition) | grepl("Endarterectomy",Procedure.Condition) | grepl("Craniotomy",Procedure.Condition) | grepl("Resection",Procedure.Condition) | grepl("PCI",Procedure.Condition),               "Procedure", "Condition"))
+```
+
+## Explanatory Data Analysis
+
+__Density Plots for # of Cases, # of Deaths and Risk Adjusted Mortality Rate by Hospital Ratings.__ 
+```{r,warning=FALSE,message=FALSE}
+p1 <- ggplot(df_clean,aes(log(X..of.Cases),fill=factor(Hospital.Ratings),colour=factor(Hospital.Ratings)))+
+  geom_density(alpha = 0.1)
+
+p2 <- ggplot(df_clean,aes(log(X..of.Deaths),fill=factor(Hospital.Ratings),colour=factor(Hospital.Ratings)))+
+  geom_density(alpha = 0.1)
+
+p3 <- ggplot(df_clean,aes(log(Risk.Adjusted.Mortality.Rate),fill=factor(Hospital.Ratings),colour=factor(Hospital.Ratings)))+
+  geom_density(alpha = 0.1)
+
+grid.arrange(p1, p2, p3, ncol=1)
+```
+
+__Conclusions 1:__ 
+
+- Distributions between 2012 and 2013 years look simiar (graphs are not shown). 
+- There are no associations between variables for number of deaths and number of cases.
+- There is __association__ between the risk adjusted mortality rate and hospital ratings.
+- Lower the risk adjusted mortality rate, better the hospital ratings.
+- Higher the risk adjusted mortality rate, worse the hospital ratings.
+
+__Density Plots for Risk Adjusted Mortality Rate by Procedures Performed and Hospital Ratings.__ 
+```{r,warning=FALSE,message=FALSE}
+df_p <- df_clean[which(df_clean$Medical_Category=="Procedure"),]
+
+p6 <- ggplot(df_p,aes(log(Risk.Adjusted.Mortality.Rate),fill=factor(Hospital.Ratings),colour=factor(Hospital.Ratings)))+
+  geom_density(alpha = 0.1)+
+  theme(legend.position='bottom')+
+  facet_wrap(~ Procedure.Condition, ncol=2, scales="free_y")
+p6
+```
+
+- The highest mortality rates is for Craniotomy and Pancreatic Resection procedures.  
+- Better and worst ratings are for Craniotomy and PCI procedures. 
+- There is __association__ between the risk adjusted mortality rate and hospital ratings.
+
+__Density Plots for Risk Adjusted Mortality Rate by Conditions Treated and Hospital Ratings.__
+```{r,warning=FALSE,message=FALSE}
+df_c <- df_clean[which(df_clean$Medical_Category=="Condition"),]
+
+p9 <- ggplot(df_c,aes(log(Risk.Adjusted.Mortality.Rate),fill=factor(Hospital.Ratings),colour=factor(Hospital.Ratings)))+
+  geom_density(alpha = 0.1)+
+  theme(legend.position='bottom')+
+  facet_wrap(~ Procedure.Condition, ncol=2, scales="free_y")
+p9
+```
+
+- The highest mortality rates is for Acute Stroke, AMI and Heart Failure conditions. 
+- Better and worse ratings are for Acute Stroke, AMI, GI Hemorrhage and Heart Failure conditions.
+- There is __association__ between the risk adjusted mortality rate and hospital ratings.
+
+__Associations between medical procedures or conditions with hospital ratings, number of cases, number of deaths and risk adjusted mortality rate.__
+
+__Procedures.__
+```{r,warning=FALSE,message=FALSE}
+df_p_all <- df_p %>% 
+  group_by(Procedure.Condition) %>% 
+  summarise(all_cases = sum(X..of.Cases), 
+            all_deaths = sum(X..of.Deaths),
+            all_mortality_rate = sum(Risk.Adjusted.Mortality.Rate))
+df_p_all 
+```
+
+__Conditions.__
+```{r,warning=FALSE,message=FALSE}
+df_c_all <- df_c %>% 
+  group_by(Procedure.Condition) %>% 
+  summarise(all_cases = sum(X..of.Cases), 
+            all_deaths = sum(X..of.Deaths),
+            all_mortality_rate = sum(Risk.Adjusted.Mortality.Rate))
+df_c_all
+```
+
+- The highest number of cases is for PCI and Craniotomy procedures, Acute Stroke, Heart Failure, AMI and GI Hemorrhage conditions.
+- The highest number of deaths is for Craniotomy and PCI procedures, Acute Stroke, AMI and Heart Failure conditions.
+- The highest mortality rates is for Craniotomy and Pancreatic Resection procedures, Acute Stroke, AMI and Heart Failure conditions. 
+
+- The lowest number of cases is for Esophageal Resection procedure, Pancreatic Cancer and Pancreatic Other conditions. 
+- The lowest number of deaths is for Esophageal Resection procedure, Pancreatic Cancer and Pancreatic Other conditions.
+- The lowest mortality rates is for Carotid Endarterectomy procedure, Pancreatic Other and Pneumonia conditions. 
+
+__Hospital Ratings.__
+```{r,warning=FALSE,message=FALSE}
+prop.table(table(df_clean$Procedure.Condition,df_clean$Hospital.Ratings))*100
+```
+
+- Better ratings are for Craniotomy procedure, Acute Stroke, AMI and Heart Failure conditions.
+- Worse ragings are for Craniotomy and PCI procedures, Acute Stroke, AMI, GI Hemorrhage and Heart Failure conditions.  
+- As Expected ratings are for Acute Stroke, AMI, GI Hemorrhage and Heart Failure conditions.
+
+__Conclusions 2:__ 
+
+- There is __association__ between the risk adjusted mortality rate and hospital ratings.
+- Lower the risk adjusted mortality rate, better the hospital ratings.
+- Higher the risk adjusted mortality rate, worse the hospital ratings.
+
+- __Procedures__: 
+    - with severe outcomes: PCI, Craniotomy and Pancreatic Resection.
+    - with good outcomes: Esophageal Resection and Carotid Endarterectomy. 
+  
+- __Conditions__: 
+    - with severe outcomes: Acute Stroke, AMI, Heart Failure and GI Hemorrhage.
+    - with good outcomes: Pancreatic Cancer, Pancreatic Other and Pneumonia. 
+
+### __Mapping and summary__ of overall hospital quality ratings and mean mortality rate among all conditions and procedures. 
+
+__Summary of hospital ratings over all conditions and procedues.__ 
+```{r,warning=FALSE,message=FALSE}
+df_clean <- df_clean %>% mutate(ratings =
+           ifelse(grepl("As Expected",Hospital.Ratings),"0",                        
+           ifelse(grepl("Better",Hospital.Ratings),"1",
+           ifelse(grepl("Worse",Hospital.Ratings),"-1",NA))))
+df_clean$ratings <- as.numeric(df_clean$ratings)
+
+all_ratings <- df_clean %>% 
+                group_by(Hospital,Latitude,Longitude) %>% 
+                summarise(all_ratings = sum(ratings), 
+                          mean_mortality_rate = mean(Risk.Adjusted.Mortality.Rate)) %>% 
+                mutate(ratings =
+                         ifelse(all_ratings > 0,"Better",
+                         ifelse(all_ratings < 0, "Worse","As Expected")))
+all_ratings$ratings <- as.factor(all_ratings$ratings)
+all_ratings <- tbl_df(all_ratings)
+```
+
+__Mapping of overall hospital ratings and mean mortality rates.__ 
+```{r,warning=FALSE,message=FALSE}
+CAmap <- get_map(location="California",source="google",maptype="roadmap",crop=FALSE,zoom=6) 
+ggmap (CAmap) +
+  geom_point(aes(x=Longitude,y=Latitude,size=mean_mortality_rate,colour=ratings),data=all_ratings,alpha=0.5)+
+  scale_colour_manual(values=c("Worse" = "darkred","Better" = "darkblue","As Expected" = "darkgrey"))+
+  scale_size(range = c(0, 10))
+```
+
+__Overall Hospital Ratings:__
+```{r,warning=FALSE,message=FALSE}
+summary(all_ratings$ratings)
+```
+
+- Hospitals with the __best__ quality ratings:
+```{r,warning=FALSE,message=FALSE}
+all_ratings %>% arrange(desc(all_ratings)) %>% select(Hospital) %>% slice(1:10)
+```
+
+- Hospitals with the __lowest__ mean mortality rate:
+```{r,warning=FALSE,message=FALSE}
+all_ratings %>% arrange(mean_mortality_rate) %>% select(Hospital) %>% slice(1:10)
+```
+
+- Hospitals with the __worst__ quality ratings:
+```{r,warning=FALSE,message=FALSE}
+all_ratings %>% arrange(all_ratings) %>% select(Hospital) %>% slice(1:10)
+```
+
+- Hospitals with the __highest__ mean mortality rate:
+```{r,warning=FALSE,message=FALSE}
+all_ratings %>% arrange(desc(mean_mortality_rate)) %>% select(Hospital)  %>% slice(1:10)
+```
+
+### __Summary__ of hospital quality ratings and mortality rates for Acute Stroke, AMI and Heart Failure __conditions__, PCI, Craniotomy and Pancreatic Resection __procedures__. 
+
+__Summary for Acute Stroke condition.__
+```{r,warning=FALSE,message=FALSE}
+df_as <- df_c[which(df_c$Procedure.Condition=="Acute Stroke"),]
+
+df_as <- df_as %>% mutate(ratings =
+           ifelse(grepl("As Expected",Hospital.Ratings),"0",                        
+           ifelse(grepl("Better",Hospital.Ratings),"1",
+           ifelse(grepl("Worse",Hospital.Ratings),"-1",NA))))
+df_as$ratings <- as.numeric(df_as$ratings)
+
+df_as_all <- df_as %>% 
+                group_by(Hospital,Latitude,Longitude) %>% 
+                summarise(all_ratings = sum(ratings), 
+                          mean_mortality_rate = mean(Risk.Adjusted.Mortality.Rate)) %>% 
+                mutate(ratings =
+                         ifelse(all_ratings > 0,"Better",
+                         ifelse(all_ratings < 0, "Worse","As Expected")))
+df_as_all$ratings <- as.factor(df_as_all$ratings)
+df_as_all <- tbl_df(df_as_all)
+
+df_as_best_rat <- df_as_all %>% arrange(desc(all_ratings)) %>% slice(1:50)
+df_as_best <- df_as_best_rat %>% arrange(mean_mortality_rate) %>% slice(1:25)
+df_as_best %>% slice(1:10) %>% select(Hospital)
+```
+
+__Summary for AMI condition.__
+```{r,warning=FALSE,message=FALSE,echo=FALSE}
+df_ami <- df_c[which(df_c$Procedure.Condition=="AMI"),]
+
+df_ami <- df_ami %>% mutate(ratings =
+           ifelse(grepl("As Expected",Hospital.Ratings),"0",                        
+           ifelse(grepl("Better",Hospital.Ratings),"1",
+           ifelse(grepl("Worse",Hospital.Ratings),"-1",NA))))
+df_ami$ratings <- as.numeric(df_ami$ratings)
+
+df_ami_all <- df_ami %>% 
+                group_by(Hospital,Latitude,Longitude) %>% 
+                summarise(all_ratings = sum(ratings), 
+                          mean_mortality_rate = mean(Risk.Adjusted.Mortality.Rate)) %>% 
+                mutate(ratings =
+                         ifelse(all_ratings > 0,"Better",
+                         ifelse(all_ratings < 0, "Worse","As Expected")))
+df_ami_all$ratings <- as.factor(df_ami_all$ratings)
+df_ami_all <- tbl_df(df_ami_all)
+
+df_ami_best_rat <- df_ami_all %>% arrange(desc(all_ratings)) %>% slice(1:50)
+df_ami_best <- df_ami_best_rat %>% arrange(mean_mortality_rate) %>% slice(1:25)
+df_ami_best %>% slice(1:10) %>% select(Hospital)
+```
+
+__Summary for Heart Failure condition.__
+```{r,warning=FALSE,message=FALSE,echo=FALSE}
+df_hf <- df_c[which(df_c$Procedure.Condition=="Heart Failure"),]
+
+df_hf <- df_hf %>% mutate(ratings =
+           ifelse(grepl("As Expected",Hospital.Ratings),"0",                        
+           ifelse(grepl("Better",Hospital.Ratings),"1",
+           ifelse(grepl("Worse",Hospital.Ratings),"-1",NA))))
+df_hf$ratings <- as.numeric(df_hf$ratings)
+
+df_hf_all <- df_hf %>% 
+                group_by(Hospital,Latitude,Longitude) %>% 
+                summarise(all_ratings = sum(ratings), 
+                          mean_mortality_rate = mean(Risk.Adjusted.Mortality.Rate)) %>% 
+                mutate(ratings =
+                         ifelse(all_ratings > 0,"Better",
+                         ifelse(all_ratings < 0, "Worse","As Expected")))
+df_hf_all$ratings <- as.factor(df_hf_all$ratings)
+df_hf_all <- tbl_df(df_hf_all)
+
+df_hf_best_rat <- df_hf_all %>% arrange(desc(all_ratings)) %>% slice(1:50)
+df_hf_best <- df_hf_best_rat %>% arrange(mean_mortality_rate) %>% slice(1:25)
+df_hf_best %>% slice(1:10) %>% select(Hospital)
+```
+
+__Summary for PCI procedure.__
+```{r,warning=FALSE,message=FALSE,echo=FALSE}
+df_pci <- df_p[which(df_p$Procedure.Condition=="PCI"),]
+
+df_pci <- df_pci %>% mutate(ratings =
+           ifelse(grepl("As Expected",Hospital.Ratings),"0",                        
+           ifelse(grepl("Better",Hospital.Ratings),"1",
+           ifelse(grepl("Worse",Hospital.Ratings),"-1",NA))))
+df_pci$ratings <- as.numeric(df_pci$ratings)
+
+df_pci_all <- df_pci %>% 
+                group_by(Hospital,Latitude,Longitude) %>% 
+                summarise(all_ratings = sum(ratings), 
+                          mean_mortality_rate = mean(Risk.Adjusted.Mortality.Rate)) %>% 
+                mutate(ratings =
+                         ifelse(all_ratings > 0,"Better",
+                         ifelse(all_ratings < 0, "Worse","As Expected")))
+df_pci_all$ratings <- as.factor(df_pci_all$ratings)
+df_pci_all <- tbl_df(df_pci_all)
+
+df_pci_best_rat <- df_pci_all %>% arrange(desc(all_ratings)) %>% slice(1:50)
+df_pci_best <- df_pci_best_rat %>% arrange(mean_mortality_rate) %>% slice(1:25)
+df_pci_best %>% slice(1:10) %>% select(Hospital)
+```
+
+__Summary for Craniotomy procedure.__
+```{r,warning=FALSE,message=FALSE,echo=FALSE}
+df_cr <- df_p[which(df_p$Procedure.Condition=="Craniotomy"),]
+
+df_cr <- df_cr %>% mutate(ratings =
+           ifelse(grepl("As Expected",Hospital.Ratings),"0",                        
+           ifelse(grepl("Better",Hospital.Ratings),"1",
+           ifelse(grepl("Worse",Hospital.Ratings),"-1",NA))))
+df_cr$ratings <- as.numeric(df_cr$ratings)
+
+df_cr_all <- df_cr %>% 
+                group_by(Hospital,Latitude,Longitude) %>% 
+                summarise(all_ratings = sum(ratings), 
+                          mean_mortality_rate = mean(Risk.Adjusted.Mortality.Rate)) %>% 
+                mutate(ratings =
+                         ifelse(all_ratings > 0,"Better",
+                         ifelse(all_ratings < 0, "Worse","As Expected")))
+df_cr_all$ratings <- as.factor(df_cr_all$ratings)
+df_cr_all <- tbl_df(df_cr_all)
+
+df_cr_best_rat <- df_cr_all %>% arrange(desc(all_ratings)) %>% slice(1:50)
+df_cr_best <- df_cr_best_rat %>% arrange(mean_mortality_rate) %>% slice(1:25)
+df_cr_best %>% slice(1:10) %>% select(Hospital)
+```
+
+__Summary for Pancreatic Resection procedure.__
+```{r,warning=FALSE,message=FALSE,echo=FALSE}
+df_pr <- df_p[which(df_p$Procedure.Condition=="Pancreatic Resection"),]
+
+df_pr <- df_pr %>% mutate(ratings =
+           ifelse(grepl("As Expected",Hospital.Ratings),"0",                        
+           ifelse(grepl("Better",Hospital.Ratings),"1",
+           ifelse(grepl("Worse",Hospital.Ratings),"-1",NA))))
+df_pr$ratings <- as.numeric(df_pr$ratings)
+
+df_pr_all <- df_pr %>% 
+                group_by(Hospital,Latitude,Longitude) %>% 
+                summarise(all_ratings = sum(ratings), 
+                          mean_mortality_rate = mean(Risk.Adjusted.Mortality.Rate)) %>% 
+                mutate(ratings =
+                         ifelse(all_ratings > 0,"Better",
+                         ifelse(all_ratings < 0, "Worse","As Expected")))
+df_pr_all$ratings <- as.factor(df_pr_all$ratings)
+df_pr_all <- tbl_df(df_pr_all)
+
+df_pr_best_rat <- df_pr_all %>% arrange(desc(all_ratings)) %>% slice(1:50)
+df_pr_best <- df_pr_best_rat %>% arrange(mean_mortality_rate) %>% slice(1:25)
+df_pr_best %>% slice(1:10) %>% select(Hospital)
+```
+
+### __Predictions__
+
+__Approach__
+
+- Predict hospital quality ratings using __random forests and classification decision trees__. 
+- Train the models and evaluate the model performances on 2012 training data.
+- Test the model performances on 2013 test data. 
+
+__Split the Data Set into 2012 training and 2013 test sets.__
+```{r,warning=FALSE,message=FALSE}
+train <- df_clean[which(df_clean$Year==2012),]
+test_original <- df_clean[which(df_clean$Year==2013),]
+test <- subset(test_original, select = -Hospital.Ratings)
+```
+
+#### Hospital Ratings Prediction Using Random Forests. 
+
+__Feature Engineering__ using Random Forests. 
+```{r,warning=FALSE,message=FALSE}
+fit <- randomForest(Hospital.Ratings ~ Procedure.Condition + Risk.Adjusted.Mortality.Rate + X..of.Cases + X..of.Deaths, data=train,importance=TRUE,ntree=1000)
+print(fit) # view results 
+importance(fit) # importance of each predictor
+```
+
+- __Mean Decrease Accuracy__ shows how important that variable is in classifying the data. They are ordered top-to-bottom as most- to least-important. Variables with a large mean decrease in accuracy are more important for classification of the data.
+```{r,warning=FALSE,message=FALSE}
+varImpPlot(fit,type=1)
+```
+
+- __The most important variables:__ Procedure.Condition and Risk.Adjusted.Mortality.Rate. 
+
+- __Mean Decrease Gini__ is a measure of how each variable contributes to the homogeneity of the nodes and leaves in the resulting random forest. The Gini coefficient is a measure of homogeneity from 0 (homogeneous) to 1 (heterogeneous). Variables that result in nodes with higher purity have a higher decrease in Gini coefficient.
+```{r,warning=FALSE,message=FALSE}
+varImpPlot(fit,type=2)
+```
+
+- Risk.Adjusted.Mortality.Rate. variable that results in nodes with higher purity. 
+
+__Predictions__ with all variables. 
+```{r,warning=FALSE,message=FALSE}
+# prediction
+prediction <- predict(fit, test)
+#fancyRpartPlot(fit)
+# confusion matrix
+cm <- as.matrix(table(Actual = test_original$Hospital.Ratings,Predicted = prediction))
+cm 
+
+n = sum(cm) # number of instances
+nc = nrow(cm) # number of classes
+diag = diag(cm) # number of correctly classified instances per class 
+rowsums = apply(cm, 1, sum) # number of instances per class
+colsums = apply(cm, 2, sum) # number of predictions per class
+p = rowsums / n # distribution of instances over the actual classes
+q = colsums / n # distribution of instances over the predicted classes
+
+accuracy = sum(diag) / n 
+accuracy
+
+precision = diag / colsums 
+recall = diag / rowsums 
+f1 = 2 * precision * recall / (precision + recall) 
+data.frame(precision, recall, f1) 
+```
+
+__Clean 2012 training set and convert to the wide format based on Procedure.Condition and Risk.Adjusted.Mortality.Rate variables.__
+```{r,warning=FALSE,message=FALSE}
+# convert train set to wide format. 
+train2 <- train %>% 
+                group_by(Hospital,Latitude,Longitude,Procedure.Condition) %>% 
+                summarise(all_ratings = sum(ratings), 
+                          mortality_rate = sum(Risk.Adjusted.Mortality.Rate)) %>% 
+                mutate(ratings =
+                         ifelse(all_ratings > 0,"Better",
+                         ifelse(all_ratings < 0, "Worse","As Expected")))
+
+train2$ratings <- as.factor(train2$ratings)
+train2 <- tbl_df(train2)
+
+train2_wide <- train2 %>% select(Hospital,Latitude,Longitude,Procedure.Condition,ratings,mortality_rate) %>% spread(Procedure.Condition,mortality_rate) 
+
+# subset to ratings and procedures only
+train2_wide_cut <- train2_wide[,-c(1,2,3)]
+# remove white spaces from column names
+colnames(train2_wide_cut) <- gsub(" ","",colnames(train2_wide_cut))
+# replace NA with 0, beauce some hospitals does not treat these conditions, thus mortality rate is zero. 
+train2_wide_cut[is.na(train2_wide_cut)] <- 0
+```
+
+__Feature Enginering with Random Forests on wide format 2012 training set__
+```{r,warning=FALSE,message=FALSE}
+fit <- randomForest(ratings ~ AAARepair + AcuteStroke + AMI + CarotidEndarterectomy + Craniotomy + EsophagealResection + GIHemorrhage + HeartFailure + HipFracture + PancreaticCancer + PancreaticOther + PancreaticResection + PCI + Pneumonia, data=train2_wide_cut,importance=TRUE,ntree=1000)
+print(fit) # view results 
+importance(fit) # importance of each predictor
+varImpPlot(fit,type=1)
+varImpPlot(fit,type=2)
+```
+
+- __The most important variables are__ Heart Failure, GI Hemorrhage, AMI and Acute Stroke, Hip Fracture __conditions__;
+- Other variables are less important. Need to separate __procedures__ from __conditions__, since procedures are not included in classification. 
+
+#### Hospital Ratings Prediction Using Classification Decision Trees (CART).
+
+__All variables are included in tree construction.__
+```{r,warning=FALSE,message=FALSE}
+tree0 <- rpart(ratings ~ AAARepair + AcuteStroke + AMI + CarotidEndarterectomy + Craniotomy + EsophagealResection + GIHemorrhage + HeartFailure + HipFracture + PancreaticCancer + PancreaticOther + PancreaticResection + PCI + Pneumonia, data = train2_wide_cut, method = "class")
+printcp(tree0)
+fancyRpartPlot(tree0)
+```
+
+### __Future Work__
+
+- Predict hospital quality ratings using __multinomial logistic regression__. 
+    - Train the model and access the model performance on 2012 training data.
+    - Test the model performance on 2013 test data. 
+- Compare three models: random forests, classification decision trees and multinomial logistic regression.
+    - Summarize which model gives the best performance on 2012 training data and on 2013 test data. 
+    - Choose the best model and test its performance on [2014 test data](http://oshpd.ca.gov/HID/Products/PatDischargeData/AHRQ/iqi-imi_overview.html). 
+
+### __Recommendations to Patients__
+
+### Top 25 Hospitals with the best overall ratings and the lowest mean mortality rate in state of California.
+```{r,warning=FALSE,message=FALSE}
+best_ratings <- all_ratings %>% arrange(desc(all_ratings)) %>% slice(1:50)
+best_lowest <- best_ratings %>% arrange(mean_mortality_rate) %>% slice(1:25)
+
+CAmap <- get_map(location="California",source="google",maptype="roadmap",crop=FALSE,zoom=6) 
+ggmap (CAmap) +
+  geom_point(aes(x=Longitude,y=Latitude,colour=mean_mortality_rate),data=best_lowest,size=5,alpha=0.6)+
+  scale_colour_gradient(limits=c(1, 5), high="red", low="darkblue")
+```
+
+### Top Ten Hospitals with the best ratings and the lowest mean mortality rate for Acute Stroke, AMI and Heart Failure __conditions__. 
+```{r,warning=FALSE,message=FALSE}
+df_as_best <- df_as_best %>% mutate(Procedure.Condition="Acute Stroke")
+df_ami_best <- df_ami_best %>% mutate(Procedure.Condition="AMI")
+df_hf_best <- df_hf_best %>% mutate(Procedure.Condition="Heart Failure")
+best_cond <- bind_rows(df_as_best[1:10,],df_ami_best[1:10,],df_hf_best[1:10,])
+
+CAmap <- get_map(location="California",source="google",maptype="roadmap",crop=FALSE,zoom=6) 
+ggmap (CAmap) +
+  geom_point(aes(x=Longitude,y=Latitude,size=mean_mortality_rate,colour=Procedure.Condition),data=best_cond,alpha=0.8)+
+  scale_colour_manual(values=c("Acute Stroke"="darkred", "AMI"="darkgrey", "Heart Failure"="darkblue"))+
+  scale_size(range = c(0, 10))
+```
+
+### Top Ten Hospitals with the best ratings and the lowest mean mortality rate for PCI, Craniotomy and Pancreatic Resection __procedures__. 
+```{r,warning=FALSE,message=FALSE}
+df_pci_best <- df_pci_best %>% mutate(Procedure.Condition="PCI")
+df_cr_best <- df_cr_best %>% mutate(Procedure.Condition="Craniotomy")
+df_pr_best <- df_pr_best %>% mutate(Procedure.Condition="Pancreatic Resection")
+best_proc <- bind_rows(df_pci_best[1:10,],df_cr_best[1:10,],df_pr_best[1:10,])
+
+CAmap <- get_map(location="California",source="google",maptype="roadmap",crop=FALSE,zoom=6) 
+ggmap (CAmap) +
+  geom_point(aes(x=Longitude,y=Latitude,size=mean_mortality_rate,colour=Procedure.Condition),data=best_proc,alpha=0.6)+
+  scale_colour_manual(values=c("PCI"="darkblue", "Craniotomy"="darkred", "Pancreatic Resection"="darkgrey"))+
+  scale_size(range = c(0, 10))
+```
+
+### Hospitals with ...
+
+Recommend which hospital will have the best care in the future using predicted hospital ratings. 
+
+
+
+
+
