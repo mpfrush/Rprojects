@@ -425,3 +425,5 @@ ggmap (CAmap) +
   geom_point(aes(x=Longitude,y=Latitude,size=Hospital.Ratings),data=df_clean,alpha=.3,color="darkred")#,size=2)
 ```
 
+
+
