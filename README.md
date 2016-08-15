@@ -25,6 +25,7 @@ Folder with R Projects for "Foundations of Data Science" Workshop. All projects 
   + Decision trees and random forests is published in Rpubs: http://rpubs.com/violetgirl/201285.
   + Milestone Report is published in Rpubs: https://rpubs.com/violetgirl/202022. 
   + Prelinimary Final Report is published in Rpubs: http://rpubs.com/violetgirl/202095. 
+  + Final Report is published in Rpubs: http://rpubs.com/violetgirl/202418. 
   
 
 
