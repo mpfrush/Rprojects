@@ -587,5 +587,3 @@ Recommend which hospital will have the best care in the future using predicted h
 
 
 
-
-
