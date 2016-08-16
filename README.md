@@ -26,6 +26,7 @@ Folder with R Projects for "Foundations of Data Science" Workshop. All projects 
   + Milestone Report is published in Rpubs: https://rpubs.com/violetgirl/202022. 
   + Final Report First Draft is published in Rpubs: http://rpubs.com/violetgirl/202095. 
   + Final Report Second Draft is published in Rpubs: http://rpubs.com/violetgirl/202418. 
+  + Final Report is published in Rpubs: http://rpubs.com/violetgirl/202439.
   
 
 
